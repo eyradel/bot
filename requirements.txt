@@ -1,11 +1,11 @@
-streamlit==1.24.1
-PyMuPDF==1.24.0  # For handling PDF files (import fitz)
-python-docx==0.8.11  # For handling .docx files
-transformers==4.31.0  # For AutoTokenizer, AutoModelForQuestionAnswering, pipeline
-langchain==0.0.235  # Base LangChain package
-langchain-community==0.0.21  # For HuggingFacePipeline and other community extensions
+streamlit
+PyMuPDF
+python-docx
+transformers
+langchain
+langchain-community
 langchain-core==0.3.0  # For LangChain core functionalities like RetrievalQA
-langchain-huggingface==0.1.0  # For HuggingFace integrations
-langchain-text-splitters==0.3.0  # For RecursiveCharacterTextSplitter
-python-dotenv==1.0.0  # For loading environment variables from .env file
-faiss-cpu==1.7.4  # For FAISS vector store (CPU version)
+langchain-huggingface
+langchain-text-splitters
+python-dotenv==1.0.0 
+faiss-cpu==1.7.4 

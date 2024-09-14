@@ -39,7 +39,8 @@ jsonschema==4.19.0
 jsonschema-specifications==2023.7.1
 langchain==0.0.235
 langchain-community==0.0.21
-langchain-core==0.0.235
+langchain-core==0.3.0
+langchain-core==0.3.0
 langchain-huggingface==0.0.5
 langchain-text-splitters==0.0.3
 langsmith==0.0.14
@@ -71,7 +72,6 @@ python-dateutil==2.8.2
 python-docx==0.8.11
 python-dotenv==1.0.0
 pytz==2023.3
-pywin32==306  # Remove this line if not on Windows
 PyYAML==6.0
 qdrant-client==1.1.0
 referencing==0.29.1

@@ -11,5 +11,4 @@ pipe = pipeline(task="text-generation",model="./Qwen2-0.5B")
 model = HuggingFacePipeline(pipeline=pipe)
 
 
-
-print(model.invoke("what is bread?"))
+model.invoke("what is bread?")

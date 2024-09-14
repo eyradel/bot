@@ -4,8 +4,10 @@ python-docx
 transformers
 langchain
 langchain-community
-langchain-core==0.3.0  # For LangChain core functionalities like RetrievalQA
+langchain-core  # For LangChain core functionalities like RetrievalQA
 langchain-huggingface
 langchain-text-splitters
-python-dotenv==1.0.0 
-faiss-cpu==1.7.4 
+python-dotenv
+faiss-cpu
+torch
+sentence-transformers

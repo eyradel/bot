@@ -15,6 +15,43 @@ load_dotenv()
 
 st.set_page_config(layout="wide")
 
+def ui():
+    st.markdown(
+        '<link href="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.19.1/css/mdb.min.css" rel="stylesheet">',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" '
+        'integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" '
+        'crossorigin="anonymous">',
+        unsafe_allow_html=True,
+    )
+    st.markdown("", unsafe_allow_html=True)
+
+    hide_streamlit_style = """
+                <style>
+                    header{visibility:hidden;}
+                    .main {
+                        margin-top: -20px;
+                        padding-top:10px;
+                    }
+                    #MainMenu {visibility: hidden;}
+                    footer {visibility: hidden;}
+                </style>
+                """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        <nav class="navbar fixed-top navbar-expand-lg navbar-dark" style="background-color: #4267B2;">
+        <a class="navbar-brand" href="#"  target="_blank">Medical doc Analyzer</a>  
+        </nav>
+    """,
+        unsafe_allow_html=True,
+    )
+
+ui()
+
 # Initialize Hugging Face embeddings model
 embedding_model = HuggingFaceEmbeddings()
 
@@ -31,7 +68,7 @@ def extract_text_from_files(uploaded_files):
     for uploaded_file in uploaded_files:
         if uploaded_file.name.endswith(".pdf"):
             # Handle PDF files
-            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf") 
+            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
             text = ""
             for page in doc:
                 text += page.get_text()  # Extract text from each page
@@ -75,7 +112,7 @@ def process_summary(extracted_text):
     context = " ".join([doc.page_content for doc in documents])
     
     # Prepare the question for summarization
-    instruction = "Summarize the following text."
+    instruction = "Summarize all the information in the uploaded documents in concise and clear language. Read and think carefully."
     
     # Pass both the question and context to the pipeline
     result = question_answerer(question=instruction, context=context)
@@ -98,34 +135,33 @@ def process_template(extracted_text):
     return result['answer']
 
 def main():
-    st.title("Document Analyzer with FAISS-based RAG")
-
     # Upload multiple PDF or Word files
     uploaded_files = st.file_uploader("Upload PDF or Word files", type=["pdf", "docx"], accept_multiple_files=True)
 
     if uploaded_files:
-        with st.spinner("Extracting Text..."):
-            extracted_text = extract_text_from_files(uploaded_files)
+        if st.button("Run Processes"):
+            with st.spinner("Extracting Text..."):
+                extracted_text = extract_text_from_files(uploaded_files)
 
-        st.success("Text Extracted")
+            st.success("Text Extracted")
 
-        col1, col2 = st.columns([1, 1])
+            col1, col2 = st.columns([1, 1])
 
-        # Display the extracted text
-        with col1:
-            st.subheader("Extracted Text")
-            st.write(extracted_text)  # Display the entire extracted text
-            with st.spinner("Summarizing..."):
-                summary = process_summary(extracted_text)
-            st.success("Summarized Text")
-            st.write(summary)  # Display the summarized text
+            # Display the extracted text
+            with col1:
+                st.subheader("Extracted Text")
+                st.write(extracted_text)  # Display the entire extracted text
+                with st.spinner("Summarizing..."):
+                    summary = process_summary(extracted_text)
+                st.success("Summarized Text")
+                st.write(summary)  # Display the summarized text
 
-        # Display the generated template
-        with col2:
-            with st.spinner("Generating Template"):
-                template = process_template(extracted_text)
-            st.success("Generated Template")
-            st.write(template)
+            # Display the generated template
+            with col2:
+                with st.spinner("Generating Template"):
+                    template = process_template(extracted_text)
+                st.success("Generated Template")
+                st.write(template)
 
     st.write("Upload your files")
 

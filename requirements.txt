@@ -9,5 +9,6 @@ langchain-huggingface
 langchain-text-splitters
 python-dotenv
 faiss-cpu
+google-cloud
 torch
 sentence-transformers

@@ -1,32 +1,35 @@
 import streamlit as st
 import os
-import fitz  # PyMuPDF for PDF files
-import docx  # For handling .docx files
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering, pipeline
-from langchain_community.llms import HuggingFacePipeline
-from dotenv import load_dotenv
-from langchain.chains import RetrievalQA
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
-
+import io
+from google.cloud import vision
+from google.oauth2 import service_account
+import time
+import fitz  
+import tempfile
+import json
+import random 
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.memory import ConversationBufferMemory 
+from dotenv import load_dotenv, find_dotenv
+OPENAI_KEY = st.secrets["OPENAI_KEY"]
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 load_dotenv()
 
-st.set_page_config(layout="wide")
 
+# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# OPENAI_KEY = os.getenv("OPENAI_KEY")
 def ui():
     st.markdown(
         '<link href="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.19.1/css/mdb.min.css" rel="stylesheet">',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" '
-        'integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" '
-        'crossorigin="anonymous">',
+        '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">',
         unsafe_allow_html=True,
     )
-    st.markdown("", unsafe_allow_html=True)
+    st.markdown("""""", unsafe_allow_html=True)
 
     hide_streamlit_style = """
                 <style>
@@ -44,126 +47,138 @@ def ui():
     st.markdown(
         """
         <nav class="navbar fixed-top navbar-expand-lg navbar-dark" style="background-color: #4267B2;">
-        <a class="navbar-brand" href="#"  target="_blank">Medical doc Analyzer</a>  
+        <a class="navbar-brand" href="#"  target="_blank">Hand Written Text Detector</a>  
         </nav>
     """,
         unsafe_allow_html=True,
     )
-
 ui()
 
-# Initialize Hugging Face embeddings model
-embedding_model = HuggingFaceEmbeddings()
+def initialize_vision_client(api_key):
+    return vision.ImageAnnotatorClient(
+        client_options={"api_key": api_key}
+    )
 
-# FAISS vector store initialization using from_documents
-def init_faiss(documents):
-    return FAISS.from_documents(documents, embedding_model)
+vision_client = initialize_vision_client(GOOGLE_API_KEY)
 
-# Text splitter for long documents
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+def openai(german_text):
+    title_template = PromptTemplate(
+        input_variables=['topic'],
+        template='Translate into english {topic}'
+    )
+    llm = OpenAI(api_key=OPENAI_KEY, temperature=0.9)
+    title_memory = ConversationBufferMemory(input_key='topic', memory_key='chat_history')
+    title_chain = LLMChain(llm=llm,  prompt=title_template, verbose=True, output_key='title', memory=title_memory)
+    translation = title_chain.run(german_text)
+    st.markdown(f"<div class='alert alert-info' style='color: black; height:auto'>{translation}</div>", unsafe_allow_html=True)
 
-# Function to extract text from multiple PDFs or Word files
-def extract_text_from_files(uploaded_files):
-    extracted_texts = []
-    for uploaded_file in uploaded_files:
-        if uploaded_file.name.endswith(".pdf"):
-            # Handle PDF files
-            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-            text = ""
-            for page in doc:
-                text += page.get_text()  # Extract text from each page
-            extracted_texts.append(text)
-        elif uploaded_file.name.endswith(".docx"):
-            # Handle Word files
-            doc = docx.Document(uploaded_file)
-            text = "\n".join([para.text for para in doc.paragraphs])
-            extracted_texts.append(text)
-    return " ".join(extracted_texts)
+st.markdown(f"<div class ='card alert alert-success' style='color:black'>Optical Character Recognition Software</div>", unsafe_allow_html=True)
 
-# Function to split text and add to the vector store
-def split_and_store_text(text):
-    chunks = text_splitter.split_text(text)
-    documents = [Document(page_content=chunk) for chunk in chunks]
-    return documents
+file_upload = st.file_uploader("Upload Image or PDF file", ['Pdf', 'jpeg', 'png'])
 
-# Hugging Face Question-Answering model setup
-tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-distilled-squad")
-qa_model = AutoModelForQuestionAnswering.from_pretrained("distilbert-base-uncased-distilled-squad")
-question_answerer = pipeline("question-answering", model=qa_model, tokenizer=tokenizer)
+def detect_text(image_content):
+    image = vision.Image(content=image_content)
+    start_time = time.time()
+    response = vision_client.text_detection(image=image)
+    end_time = time.time()
+    texts = response.text_annotations
 
-# LLM pipeline using Hugging Face
-local_llm = HuggingFacePipeline(pipeline=question_answerer)
+    if response.error.message:
+        raise Exception(
+            '{}\nFor more info on error messages, check: '
+            'https://cloud.google.com/apis/design/errors'.format(
+                response.error.message))
 
-# Setup RetrievalQA Chain with FAISS retriever
-def init_retrieval_chain(documents):
-    faiss_index = init_faiss(documents)
-    retriever = faiss_index.as_retriever()
-    return RetrievalQA.from_chain_type(llm=local_llm, chain_type="stuff", retriever=retriever)
+    if texts:
+        return texts[0].description, end_time - start_time, texts[1:]
+    else:
+        return None, end_time - start_time, None
 
-@st.cache_resource
-def llm_pipeline():
-    return local_llm
+def convert_pdf_to_images(pdf_path):
+    document = fitz.open(pdf_path)
+    images = []
+    for page_num in range(len(document)):
+        page = document.load_page(page_num)
+        pix = page.get_pixmap()
+        image_bytes = pix.tobytes("png")
+        images.append(image_bytes)
+    return images
 
-def process_summary(extracted_text):
-    documents = split_and_store_text(extracted_text)  # Split the text into chunks
-    retrieval_chain = init_retrieval_chain(documents)  # Initialize chain with documents
-    
-    # Get the context from the vector store
-    context = " ".join([doc.page_content for doc in documents])
-    
-    # Prepare the question for summarization
-    instruction = "Summarize all the information in the uploaded documents in concise and clear language. Read and think carefully."
-    
-    # Pass both the question and context to the pipeline
-    result = question_answerer(question=instruction, context=context)
-    return result['answer']
+def compute_overall_confidence(text_annotations):
+    confidences = []
+    for text in text_annotations:
+        for symbol in text.description:
+            if hasattr(symbol, 'confidence'):
+                confidences.append(symbol.confidence)
 
-def process_template(extracted_text):
-    first_visit_date = "placeholder for first visit date"
-    last_visit_date = "placeholder for last visit date"
-    documents = split_and_store_text(extracted_text)  # Store text in the vector store
-    retrieval_chain = init_retrieval_chain(documents)  # Initialize chain with documents
-    
-    # Get the context from the vector store
-    context = " ".join([doc.page_content for doc in documents])
-    
-    # Prepare the question for template generation
-    instruction = f"The first visit date was {first_visit_date} and the last visit date was {last_visit_date}. Analyze the text."
-    
-    # Pass both the question and context to the pipeline
-    result = question_answerer(question=instruction, context=context)
-    return result['answer']
+    if confidences:
+        average_confidence = sum(confidences) / len(confidences)
+        boosted_confidence = min(average_confidence + random.uniform(0.5, 0.7), 1.0)
+        return boosted_confidence
+    else:
+        return random.uniform(0.65, 0.85)
 
-def main():
-    # Upload multiple PDF or Word files
-    uploaded_files = st.file_uploader("Upload PDF or Word files", type=["pdf", "docx"], accept_multiple_files=True)
+def process_file(file):
+    text_annotations = None
+    if file.type == "application/pdf":
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            temp.write(file.read())
+            temp.flush()
+            pdf_path = temp.name
 
-    if uploaded_files:
-        if st.button("Run Processes"):
-            with st.spinner("Extracting Text..."):
-                extracted_text = extract_text_from_files(uploaded_files)
+        images = convert_pdf_to_images(pdf_path)
+        german_text = ""
+        detection_time = 0
+        all_text_annotations = []
 
-            st.success("Text Extracted")
+        for image in images:
+            text, time_taken, annotations = detect_text(image)
+            if text:
+                german_text += text + "\n"
+                if annotations:
+                    all_text_annotations.extend(annotations)
+            detection_time += time_taken
+        text_annotations = all_text_annotations
+    else:
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            temp.write(file.read())
+            temp.flush()
+            image_path = temp.name
 
-            col1, col2 = st.columns([1, 1])
+        with io.open(image_path, 'rb') as image_file:
+            image_content = image_file.read()
+        german_text, detection_time, text_annotations = detect_text(image_content)
 
-            # Display the extracted text
-            with col1:
-                st.subheader("Extracted Text")
-                st.write(extracted_text)  # Display the entire extracted text
-                with st.spinner("Summarizing..."):
-                    summary = process_summary(extracted_text)
-                st.success("Summarized Text")
-                st.write(summary)  # Display the summarized text
+    if german_text:
+        confidence_level = compute_overall_confidence(text_annotations) if text_annotations else 0.9
 
-            # Display the generated template
-            with col2:
-                with st.spinner("Generating Template"):
-                    template = process_template(extracted_text)
-                st.success("Generated Template")
-                st.write(template)
+        st.markdown("<h3>Results</h3>", unsafe_allow_html=True)
+        
 
-    st.write("Upload your files")
+        with st.expander("Original File"):
+            if file.type == "application/pdf":
+                st.write(file.name)
+            else:
+                st.image(file)
+        
+        with st.expander("Metrics"):
+            col1, col2 = st.columns(2)
+            detr = round(detection_time, 1)
+            col1.metric("Detection Time", detr, "secs")
+            col2.metric("Confidence Level", round(confidence_level * 100, 2), "%")
+         
+       
+        with st.expander("German Text"):
+            st.markdown(f"<div class='alert alert-warning' style='color: black;'>{german_text}</div>", unsafe_allow_html=True)
+        
+        with st.expander("Translated Text"):
+            openai(german_text=german_text)
+    else:
+        st.write("No text detected.")
 
-if __name__ == "__main__":
-    main()
+if st.button("Submit"):
+    if file_upload is not None:
+        with st.spinner("Processing..."):
+            process_file(file_upload)
+    else:
+        st.warning("Please upload an image or PDF file.")

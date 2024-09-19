@@ -164,7 +164,7 @@ def process_file(file):
         with st.expander("Metrics"):
             col1, col2 = st.columns(2)
             detr = round(detection_time, 1)
-            col1.metric("Detection Time", detr, "secs")
+            col1.metric("Extraction Time", detr, "secs")
             col2.metric("Confidence Level", round(confidence_level * 100, 2), "%")
          
        

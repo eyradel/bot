@@ -74,7 +74,7 @@ def openai(german_text):
 
 st.markdown(f"<div class ='card alert alert-success' style='color:black'>Optical Character Recognition Software</div>", unsafe_allow_html=True)
 
-file_upload = st.file_uploader("Upload Image or PDF file", ['Pdf', 'jpeg', 'png'])
+file_upload = st.file_uploader("Upload Image or PDF file", ['Pdf', 'jpeg', 'png'],accept_multiple_files=True)
 
 def detect_text(image_content):
     image = vision.Image(content=image_content)
